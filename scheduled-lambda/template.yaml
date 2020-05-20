@@ -1,0 +1,67 @@
+Transform: AWS::Serverless-2016-10-31
+Globals:
+  Function:
+    Timeout: 30
+    
+Parameters:
+
+  Environment:
+    Type: String
+    Description: The environment tag is used to designate the environment stage of the associated AWS resources
+    Default: Staging
+    AllowedValues:
+      - Staging
+      - Production
+  TableName:
+    Type: String
+    Description: DynamoDB table name
+    Default: simple-table
+      
+Mappings:
+  Environment:
+    Staging:
+      AbbrLowerCase: stg
+      AbbrUpperCase: STG
+    Production:
+      AbbrLowerCase: prod
+      AbbrUpperCase: PROD
+      
+Resources:
+
+  ScheduledFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Sample function
+      # FunctionName: sample-mock
+      CodeUri: ./sample-lambda
+      Handler: app.lambda_handler
+      Runtime: nodejs12.x
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref SampleTable
+      MemorySize: 256
+      Environment:
+        Variables:
+          ENVIRONMENT: !FindInMap [Environment, !Ref Environment, 'AbbrLowerCase']
+          TABLE_NAME: !Ref SampleTable
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+      
+    DependsOn: SampleTable
+    
+  SampleTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Join ['-', [!Ref TableName, !FindInMap [Environment, !Ref Environment, 'AbbrLowerCase']]]
+      KeySchema:
+        - AttributeName: event_time
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      AttributeDefinitions:
+        - AttributeName: event_time
+          AttributeType: S
